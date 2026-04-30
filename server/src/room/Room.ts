@@ -177,6 +177,43 @@ export class Room {
   }
   private transitionToCooldown(): void {
     this.state = "COOLDOWN";
+    this.cooldownEndsAtServerMs = this.opts.timers.now() + this.opts.cooldownMs;
+    this.playAtServerMs = null;
+    this.endAtServerMs = null;
+
+    if (this.endTimer !== null) {
+      this.opts.timers.clearTimeout(this.endTimer);
+      this.endTimer = null;
+    }
+    if (this.playheadInterval !== null) {
+      this.opts.timers.clearInterval(this.playheadInterval);
+      this.playheadInterval = null;
+    }
+
+    // Promote pending users to participants now.
+    for (const [, user] of this.pendingUsers) {
+      for (const [socket, rec] of this.sockets) {
+        if (rec.user?.id === user.id && rec.pending) {
+          this.participants.addSocket(socket, user);
+          rec.pending = false;
+        }
+      }
+    }
+    this.pendingUsers.clear();
+
+    this.cooldownTimer = this.opts.timers.setTimeout(
+      () => this.transitionFromCooldownToLobby(),
+      this.opts.cooldownMs,
+    );
     this.broadcastState();
+  }
+
+  private transitionFromCooldownToLobby(): void {
+    this.cooldownTimer = null;
+    this.state = "LOBBY";
+    this.cooldownEndsAtServerMs = null;
+    this.broadcastState();
+    // Auto-resume if 2+ participants are still here.
+    this.maybeStartCountdown();
   }
 }

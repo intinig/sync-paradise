@@ -165,3 +165,42 @@ describe("Room: playhead broadcast", () => {
     expect(heads2.length).toBe(4);
   });
 });
+
+describe("Room: PLAYING -> COOLDOWN", () => {
+  it("at endAtServerMs, transitions to COOLDOWN with cooldownEndsAtServerMs set", () => {
+    const { room, timers } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000); // PLAYING
+    timers.advance(256_000); // end of video
+    const snap = room.snapshot();
+    expect(snap.state).toBe("COOLDOWN");
+    expect(snap.cooldownEndsAtServerMs).toBe(timers.now() + 30_000);
+    expect(snap.playAtServerMs).toBeNull();
+    expect(snap.endAtServerMs).toBeNull();
+  });
+
+  it("if all participants leave during PLAYING, transitions to COOLDOWN", () => {
+    const { room, timers } = makeRoom();
+    const s1 = { id: 1 };
+    const s2 = { id: 2 };
+    room.onSocketJoin(s1, alice);
+    room.onSocketJoin(s2, bob);
+    timers.advance(10_000); // PLAYING
+    room.onSocketLeave(s1);
+    room.onSocketLeave(s2);
+    expect(room.snapshot().state).toBe("COOLDOWN");
+  });
+
+  it("playhead interval is cleared when leaving PLAYING", () => {
+    const { room, timers, sent } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000); // PLAYING
+    timers.advance(256_000); // video ends -> COOLDOWN
+    sent.length = 0;
+    timers.advance(10_000);
+    const heads = sent.filter((s) => s.msg.type === "playhead");
+    expect(heads.length).toBe(0);
+  });
+});
