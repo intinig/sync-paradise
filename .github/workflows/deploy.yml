@@ -5,9 +5,10 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
-# Scope concurrency to the ref so a manual dispatch from a non-main branch
-# (or an automatic deploy of a feature branch via workflow_dispatch) does not
-# cancel the in-flight deploy of main, and vice versa.
+# Scoped to the ref. The job-level guard below restricts execution to main, so
+# in practice only main runs reach the deploy step — but keying concurrency on
+# `github.ref` keeps any skipped non-main run from cancelling an in-flight main
+# deploy if the guard is ever loosened.
 concurrency:
   group: render-deploy-${{ github.ref }}
   cancel-in-progress: true

@@ -20,7 +20,12 @@ function Chyron(props: { route: "main" | "grid" }) {
   const [, forceTick] = useState(0);
   const startRef = useRef<number>(performance.now());
   useEffect(() => {
-    const id = setInterval(() => forceTick((n) => n + 1), 100);
+    // ~30fps tick — the timecode burn shows frames in the 0–29 column,
+    // so updating slower than that makes the frame counter visibly skip
+    // values (jumping 0 → 3 → 6 …). 33ms keeps the visual cadence honest
+    // while the value itself is still derived from performance.now() so
+    // it stays accurate across throttled tabs and slow devices.
+    const id = setInterval(() => forceTick((n) => n + 1), 33);
     return () => clearInterval(id);
   }, []);
   const elapsedMs = performance.now() - startRef.current;
