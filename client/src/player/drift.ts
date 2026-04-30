@@ -2,13 +2,20 @@
  * Two-state drift policy:
  *
  * - Below DRIFT_TOLERANCE_SEC the player is considered "in sync" and we leave
- *   it alone. 300ms is comfortably above the noise floor of inter-browser
- *   YouTube playback drift, so we don't fight normal jitter.
+ *   it alone. 1.5s is well above the inter-platform first-frame variance
+ *   (iOS Safari vs macOS Chrome can sit 200–500ms apart at startup) plus
+ *   network-message latency plus YouTube buffer hiccups. Anything tighter
+ *   produces a visible glitch every 5s as the loop repeatedly seeks against
+ *   structural noise.
  * - At or above the threshold we hard-seek to the expected position. A single
- *   audible cut once per song is preferable to constant rate-nudging at every
- *   5s tick, which produces audible warbling and rarely converges.
+ *   audible cut on a real desync (network freeze, tab backgrounded) is
+ *   preferable to constant correction against the system's normal jitter.
+ *
+ * For a 4-minute video this means worst-case 1.5s of drift between two
+ * viewers — barely perceptible when watching apart, well below the threshold
+ * where the public grid's overlapping-audio illusion would break down.
  */
-export const DRIFT_TOLERANCE_SEC = 0.3;
+export const DRIFT_TOLERANCE_SEC = 1.5;
 
 export type DriftAction =
   | { kind: "none" }

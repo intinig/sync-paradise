@@ -1,9 +1,13 @@
 import { useRoom } from "../state/room.js";
 import { Tile } from "../components/Tile.js";
 import { SyncIndicator } from "../components/SyncIndicator.js";
+import { useDisplaySec } from "../lib/useDisplaySec.js";
 
 export function Player(props: { getOffsetMs: () => number }) {
   const { participants, you, videoId, playAtServerMs, offsetMs, expectedSec } = useRoom();
+  // Smooth 1Hz interpolation for the visible TC overlay; drift correction
+  // still uses `expectedSec` from the store (server-authoritative).
+  const displaySec = useDisplaySec(playAtServerMs, offsetMs);
 
   if (!you) return null;
   const others = participants.filter((p) => p.id !== you.id);
@@ -22,6 +26,7 @@ export function Player(props: { getOffsetMs: () => number }) {
           muted={false}
           playAtServerMs={playAtServerMs}
           expectedSec={expectedSec}
+          displaySec={displaySec}
           getOffsetMs={props.getOffsetMs}
           variant="primary"
           camNumber={camNumberFor(me.id)}
@@ -37,6 +42,7 @@ export function Player(props: { getOffsetMs: () => number }) {
             muted={true}
             playAtServerMs={playAtServerMs}
             expectedSec={expectedSec}
+            displaySec={displaySec}
             getOffsetMs={props.getOffsetMs}
             variant="pip"
             camNumber={camNumberFor(p.id)}

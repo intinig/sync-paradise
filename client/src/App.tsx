@@ -5,6 +5,7 @@ import { fetchMe, logout } from "./api/auth.js";
 import { Lobby } from "./views/Lobby.js";
 import { Player } from "./views/Player.js";
 import { PublicGrid } from "./views/PublicGrid.js";
+import { compensatedExpectedSec } from "./lib/playhead.js";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -89,7 +90,7 @@ export function App() {
     if (!meChecked) return;
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const url = `${proto}://${window.location.host}/ws`;
-    const sock = new SyncWs({
+    const sock: SyncWs = new SyncWs({
       url,
       onMessage: (msg) => {
         if (msg.type === "room_state") {
@@ -98,9 +99,18 @@ export function App() {
         } else if (msg.type === "participants") {
           applyParticipants(msg.participants);
         } else if (msg.type === "playhead") {
-          // Server-authoritative playhead. Tiles consume this via the store
-          // and pass it to correctDrift which seeks if drift exceeds 300ms.
-          setExpectedSec(msg.expectedSec);
+          // Compensate for the network lag between server broadcast and now,
+          // capped to a plausible window. See client/src/lib/playhead.ts —
+          // the cap protects against a wildly skewed local clock during the
+          // window before OffsetEstimator's first sample arrives.
+          const offset = sock.offsetMs();
+          setExpectedSec(
+            compensatedExpectedSec({
+              expectedSec: msg.expectedSec,
+              serverNowAtBroadcast: msg.serverNow,
+              serverNowEstimate: Date.now() + offset,
+            }),
+          );
         }
       },
       onOffsetChange: setOffset,
