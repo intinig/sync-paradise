@@ -1,5 +1,7 @@
 # Sync Paradise
 
+(User-facing name: **Syncer's Paradise**. The repo and Render service stay `sync-paradise`.)
+
 A web app that synchronizes Coolio's "Gangsta's Paradise" YouTube video across everyone signed in, plus a public grid that shows all participants' tiles with their names overlaid.
 
 Spec: `docs/superpowers/specs/2026-04-30-sync-paradise-design.md`
