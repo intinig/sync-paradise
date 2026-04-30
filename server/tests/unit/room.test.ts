@@ -204,3 +204,47 @@ describe("Room: PLAYING -> COOLDOWN", () => {
     expect(heads.length).toBe(0);
   });
 });
+
+describe("Room: late joiner during PLAYING", () => {
+  it("a logged-in user joining during PLAYING is reported as spectator and not in participants", () => {
+    const { room, timers, sent } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000); // PLAYING
+    sent.length = 0;
+    const carolSocket = { id: 3 };
+    room.onSocketJoin(carolSocket, carol);
+    const carolMsg = sent.find((s) => s.socket === carolSocket)?.msg;
+    expect(carolMsg!.type).toBe("room_state");
+    if (carolMsg!.type !== "room_state") throw new Error("type narrowing");
+    expect(carolMsg.you?.role).toBe("spectator");
+    expect(carolMsg.participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob"]);
+  });
+
+  it("on COOLDOWN entry, a previously-pending user becomes a participant", () => {
+    const { room, timers } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000); // PLAYING
+    room.onSocketJoin({ id: 3 }, carol);
+    timers.advance(256_000); // -> COOLDOWN
+    expect(room.snapshot().state).toBe("COOLDOWN");
+    expect(room.snapshot().participants.map((p) => p.id).sort()).toEqual([
+      "u-alice",
+      "u-bob",
+      "u-carol",
+    ]);
+  });
+
+  it("if pending user disconnects before COOLDOWN, they do not become a participant", () => {
+    const { room, timers } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000);
+    const carolSocket = { id: 3 };
+    room.onSocketJoin(carolSocket, carol);
+    room.onSocketLeave(carolSocket);
+    timers.advance(256_000);
+    expect(room.snapshot().participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob"]);
+  });
+});
