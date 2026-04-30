@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRoom } from "../state/room.js";
 import { Tile } from "../components/Tile.js";
 import { Countdown } from "../components/Countdown.js";
 import { formatTimecode } from "../lib/time.js";
+import { useDisplaySec } from "../lib/useDisplaySec.js";
 
 export function PublicGrid(props: { getOffsetMs: () => number }) {
   const {
@@ -18,18 +19,9 @@ export function PublicGrid(props: { getOffsetMs: () => number }) {
 
   // Smooth 1Hz display value for the banner timecode AND for the per-tile
   // burned-in timecode. Drift correction on each tile still uses the
-  // server-authoritative `expectedSec` from the store.
-  const [displaySec, setDisplaySec] = useState<number | null>(null);
-  useEffect(() => {
-    if (state !== "PLAYING" || playAtServerMs === null) {
-      setDisplaySec(null);
-      return;
-    }
-    const tick = () => setDisplaySec((Date.now() + offsetMs - playAtServerMs) / 1000);
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [state, playAtServerMs, offsetMs]);
+  // server-authoritative `expectedSec` from the store. Pass null when not
+  // PLAYING so the hook returns null.
+  const displaySec = useDisplaySec(state === "PLAYING" ? playAtServerMs : null, offsetMs);
 
   // Stable cam numbers across the room (alphabetical by id).
   const orderedAll = [...participants].sort((a, b) => a.id.localeCompare(b.id));

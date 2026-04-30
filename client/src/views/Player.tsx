@@ -1,26 +1,13 @@
-import { useEffect, useState } from "react";
 import { useRoom } from "../state/room.js";
 import { Tile } from "../components/Tile.js";
 import { SyncIndicator } from "../components/SyncIndicator.js";
+import { useDisplaySec } from "../lib/useDisplaySec.js";
 
 export function Player(props: { getOffsetMs: () => number }) {
   const { participants, you, videoId, playAtServerMs, offsetMs, expectedSec } = useRoom();
-
-  // Smooth 1Hz interpolation purely for the visual TC overlay on each tile.
-  // Drift correction still uses `expectedSec` from the store (server-
-  // authoritative, every 5s); this value just keeps the burned-in timecode
-  // ticking visibly between those broadcasts.
-  const [displaySec, setDisplaySec] = useState<number | null>(null);
-  useEffect(() => {
-    if (playAtServerMs === null) {
-      setDisplaySec(null);
-      return;
-    }
-    const tick = () => setDisplaySec((Date.now() + offsetMs - playAtServerMs) / 1000);
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [playAtServerMs, offsetMs]);
+  // Smooth 1Hz interpolation for the visible TC overlay; drift correction
+  // still uses `expectedSec` from the store (server-authoritative).
+  const displaySec = useDisplaySec(playAtServerMs, offsetMs);
 
   if (!you) return null;
   const others = participants.filter((p) => p.id !== you.id);

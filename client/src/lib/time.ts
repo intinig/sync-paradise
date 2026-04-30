@@ -1,7 +1,7 @@
 /**
- * Format a non-negative number of seconds as MM:SS. Used by tile timecode
- * burns, the public grid feed banner, and the lobby countdown — anywhere a
- * VHS-style "MM : SS" badge appears.
+ * Format a non-negative number of seconds as the unspaced "MM:SS" used in
+ * tile timecode burns and the public-grid feed banner. The lobby countdown
+ * uses the spaced "MM : SS" variant — see `formatCountdown` below.
  *
  * Returns "00:00" for null / NaN / negative input so callers can pass values
  * that are not yet known without crashing.

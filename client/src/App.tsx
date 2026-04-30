@@ -5,6 +5,7 @@ import { fetchMe, logout } from "./api/auth.js";
 import { Lobby } from "./views/Lobby.js";
 import { Player } from "./views/Player.js";
 import { PublicGrid } from "./views/PublicGrid.js";
+import { compensatedExpectedSec } from "./lib/playhead.js";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -98,22 +99,18 @@ export function App() {
         } else if (msg.type === "participants") {
           applyParticipants(msg.participants);
         } else if (msg.type === "playhead") {
-          // The server's `expectedSec` was true at the moment it called
-          // `serverNow`. By the time this message arrived, server-time has
-          // advanced by roughly half the round-trip — using the raw value
-          // makes the player look ~50–300ms behind for the entire window
-          // until the next message, which on cellular alone can exceed the
-          // drift threshold and trigger a needless seek.
-          //
-          // Compensate by adding the wall-clock time elapsed between the
-          // server's broadcast and now (in server time, which we estimate
-          // via the NTP-style offset). On a local network this adjustment
-          // is small; on cellular it's the difference between a smooth
-          // playback and a glitch every 5 seconds.
+          // Compensate for the network lag between server broadcast and now,
+          // capped to a plausible window. See client/src/lib/playhead.ts —
+          // the cap protects against a wildly skewed local clock during the
+          // window before OffsetEstimator's first sample arrives.
           const offset = sock.offsetMs();
-          const serverNowEstimate = Date.now() + offset;
-          const elapsedSinceBroadcastMs = Math.max(0, serverNowEstimate - msg.serverNow);
-          setExpectedSec(msg.expectedSec + elapsedSinceBroadcastMs / 1000);
+          setExpectedSec(
+            compensatedExpectedSec({
+              expectedSec: msg.expectedSec,
+              serverNowAtBroadcast: msg.serverNow,
+              serverNowEstimate: Date.now() + offset,
+            }),
+          );
         }
       },
       onOffsetChange: setOffset,
