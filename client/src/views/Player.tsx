@@ -18,6 +18,11 @@ export function Player(props: { getOffsetMs: () => number }) {
   if (!you) return null;
   const others = participants.filter((p) => p.id !== you.id);
   const me = participants.find((p) => p.id === you.id) ?? you;
+  // Stable cam numbers based on alphabetical id order so the same person gets
+  // the same CAM-NN across the room.
+  const orderedAll = [...participants].sort((a, b) => a.id.localeCompare(b.id));
+  const camNumberFor = (id: string) => orderedAll.findIndex((p) => p.id === id) + 1;
+
   return (
     <div className="player-view">
       <div style={{ position: "relative" }}>
@@ -28,7 +33,8 @@ export function Player(props: { getOffsetMs: () => number }) {
           playAtServerMs={playAtServerMs}
           expectedSec={expectedSec}
           getOffsetMs={props.getOffsetMs}
-          showLabel={false}
+          variant="primary"
+          camNumber={camNumberFor(me.id)}
         />
         <SyncIndicator offsetMs={offsetMs} />
       </div>
@@ -42,6 +48,8 @@ export function Player(props: { getOffsetMs: () => number }) {
             playAtServerMs={playAtServerMs}
             expectedSec={expectedSec}
             getOffsetMs={props.getOffsetMs}
+            variant="pip"
+            camNumber={camNumberFor(p.id)}
           />
         ))}
       </div>
