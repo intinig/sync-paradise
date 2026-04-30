@@ -121,14 +121,24 @@ export class Room {
     this.transitionToCooldown();
   }
 
-  // Stubs replaced in later tasks.
   private transitionToCountdown(): void {
     this.state = "COUNTDOWN";
+    this.playAtServerMs = this.opts.timers.now() + this.opts.countdownMs;
+    this.endAtServerMs = null;
+    this.cooldownEndsAtServerMs = null;
+    this.countdownTimer = this.opts.timers.setTimeout(
+      () => this.transitionToPlaying(),
+      this.opts.countdownMs,
+    );
     this.broadcastState();
   }
   private transitionToLobby(): void {
     this.state = "LOBBY";
     this.playAtServerMs = null;
+    this.broadcastState();
+  }
+  private transitionToPlaying(): void {
+    this.state = "PLAYING";
     this.broadcastState();
   }
   private transitionToCooldown(): void {

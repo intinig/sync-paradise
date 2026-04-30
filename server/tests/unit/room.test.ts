@@ -83,3 +83,30 @@ describe("Room: lobby & joins", () => {
     expect(room.snapshot().participants).toEqual([]);
   });
 });
+
+describe("Room: COUNTDOWN start", () => {
+  it("two distinct participants triggers COUNTDOWN with playAtServerMs = now+countdown", () => {
+    const { room, timers, sent } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    sent.length = 0;
+    room.onSocketJoin({ id: 2 }, bob);
+    const snap = room.snapshot();
+    expect(snap.state).toBe("COUNTDOWN");
+    expect(snap.playAtServerMs).toBe(timers.now() + 10_000);
+    const countdowns = sent.filter(
+      (s) => s.msg.type === "room_state" && s.msg.state === "COUNTDOWN",
+    );
+    expect(countdowns.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a third participant joining during COUNTDOWN does not reset playAtServerMs", () => {
+    const { room, timers } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    const original = room.snapshot().playAtServerMs!;
+    timers.advance(2_000);
+    room.onSocketJoin({ id: 3 }, carol);
+    expect(room.snapshot().state).toBe("COUNTDOWN");
+    expect(room.snapshot().playAtServerMs).toBe(original);
+  });
+});
