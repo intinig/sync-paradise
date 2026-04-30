@@ -27,6 +27,9 @@ export function Tile(props: TileProps) {
     }).then((p) => {
       if (cancelled) { p.dispose(); return; }
       playerRef.current = p;
+      if (!props.muted) {
+        (window as unknown as { __lastPlayer?: typeof p }).__lastPlayer = p;
+      }
       if (props.playAtServerMs !== null) p.scheduleStart(props.playAtServerMs);
     });
     return () => {

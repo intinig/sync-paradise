@@ -3,7 +3,7 @@ import express from "express";
 import http from "node:http";
 import WebSocket from "ws";
 import { mountWs } from "../../src/ws/server.js";
-import { sealSession } from "../../src/auth/session.js";
+import { sealSession, COOKIE_NAME } from "../../src/auth/session.js";
 import type { ServerMessage } from "../../../shared/protocol.js";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
@@ -75,7 +75,7 @@ describe("WS server", () => {
       { id: "u-1", name: "Alice", picture: "p.jpg" },
       SECRET,
     );
-    const cookieHeader = `__Host-session=${encodeURIComponent(cookieValue)}`;
+    const cookieHeader = `${COOKIE_NAME}=${encodeURIComponent(cookieValue)}`;
     const { ws, messages } = await connect(srv.port, cookieHeader);
     await waitFor(() => messages.find((m) => m.type === "room_state"));
     const msg = messages.find((m) => m.type === "room_state")!;
@@ -97,10 +97,10 @@ describe("WS server", () => {
   });
 
   it("two authed clients trigger COUNTDOWN broadcast", async () => {
-    const aliceCookie = `__Host-session=${encodeURIComponent(
+    const aliceCookie = `${COOKIE_NAME}=${encodeURIComponent(
       await sealSession({ id: "u-a", name: "Alice", picture: "" }, SECRET),
     )}`;
-    const bobCookie = `__Host-session=${encodeURIComponent(
+    const bobCookie = `${COOKIE_NAME}=${encodeURIComponent(
       await sealSession({ id: "u-b", name: "Bob", picture: "" }, SECRET),
     )}`;
     const a = await connect(srv.port, aliceCookie);
