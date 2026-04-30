@@ -60,7 +60,7 @@ if (config.nodeEnv === "test") {
   });
 }
 
-const clientDist = path.resolve(__dirname, "../client");
+const clientDist = path.resolve(__dirname, "../../../client");
 app.use(express.static(clientDist));
 app.get(/^\/(?!auth|me|healthz|ws).*/, (_req, res) => {
   res.sendFile(path.join(clientDist, "index.html"));
