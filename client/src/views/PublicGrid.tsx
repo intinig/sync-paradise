@@ -10,13 +10,28 @@ function formatFeedTc(sec: number | null): string {
 }
 
 export function PublicGrid(props: { getOffsetMs: () => number }) {
-  const { state, participants, videoId, playAtServerMs, cooldownEndsAtServerMs, offsetMs } =
-    useRoom();
+  const {
+    state,
+    participants,
+    videoId,
+    playAtServerMs,
+    cooldownEndsAtServerMs,
+    offsetMs,
+    expectedSec,
+  } = useRoom();
   const [allUnmuted, setAllUnmuted] = useState(false);
-  const [expectedSec, setExpectedSec] = useState<number | null>(null);
+
+  // Smooth-ticking display value for the banner only. Interpolated locally
+  // each second from playAtServerMs so the banner looks alive between the
+  // server's 5s playhead broadcasts. Tiles use the canonical `expectedSec`
+  // from the store (server-authoritative) for drift correction.
+  const [bannerSec, setBannerSec] = useState<number | null>(null);
   useEffect(() => {
-    if (state !== "PLAYING" || !playAtServerMs) return;
-    const tick = () => setExpectedSec((Date.now() + offsetMs - playAtServerMs) / 1000);
+    if (state !== "PLAYING" || !playAtServerMs) {
+      setBannerSec(null);
+      return;
+    }
+    const tick = () => setBannerSec((Date.now() + offsetMs - playAtServerMs) / 1000);
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -34,7 +49,7 @@ export function PublicGrid(props: { getOffsetMs: () => number }) {
       <div className="grid-banner">
         ▌ SYNCER'S PARADISE <span className="sep">/</span> GLOBAL FEED <span className="sep">/</span>{" "}
         {camCount} CAM{camCount === 1 ? "" : "S"} {live ? "LIVE" : "STANDBY"}
-        {live && <span className="feed-tc">{formatFeedTc(expectedSec)}</span>}
+        {live && <span className="feed-tc">{formatFeedTc(bannerSec)}</span>}
       </div>
 
       <div className="cam-grid">

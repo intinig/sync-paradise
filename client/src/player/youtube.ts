@@ -76,7 +76,6 @@ export async function createSyncedPlayer(opts: SyncedPlayerOptions): Promise<Syn
   });
   if (opts.muted) player!.mute();
   let scheduledTimeout: ReturnType<typeof setTimeout> | null = null;
-  let rateRevertTimeout: ReturnType<typeof setTimeout> | null = null;
 
   return {
     scheduleStart(playAtServerMs) {
@@ -114,13 +113,10 @@ export async function createSyncedPlayer(opts: SyncedPlayerOptions): Promise<Syn
     correctDrift(expectedSec) {
       const action = decideDriftAction({ expectedSec, currentSec: player.getCurrentTime() });
       if (action.kind === "none") return;
-      if (action.kind === "seek") { player.seekTo(action.toSec, true); return; }
-      try { player.setPlaybackRate(action.rate); }
-      catch { player.seekTo(expectedSec, true); return; }
-      if (rateRevertTimeout) clearTimeout(rateRevertTimeout);
-      rateRevertTimeout = setTimeout(() => {
-        try { player.setPlaybackRate(1); } catch { /* ignore */ }
-      }, 3000);
+      // Single-strategy correction: hard seek. Rate-nudging produced audible
+      // warbling at every 5s tick because real drift sat in the 50–200ms band
+      // and the rate adjustment never settled.
+      player.seekTo(action.toSec, true);
     },
     setMuted(muted) {
       if (muted) player.mute(); else player.unMute();
@@ -128,7 +124,6 @@ export async function createSyncedPlayer(opts: SyncedPlayerOptions): Promise<Syn
     currentTime() { return player.getCurrentTime(); },
     dispose() {
       if (scheduledTimeout) clearTimeout(scheduledTimeout);
-      if (rateRevertTimeout) clearTimeout(rateRevertTimeout);
       try { player.destroy(); } catch { /* ignore */ }
     },
   };
