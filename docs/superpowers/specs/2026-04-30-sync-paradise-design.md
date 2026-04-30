@@ -119,7 +119,7 @@ If the player reports the requested rate isn't supported, fall back to `seekTo`.
 
 ### 5.4 Video end
 
-The server holds the canonical end time: `endAtServerMs = playAtServerMs + VIDEO_DURATION_MS`, where `VIDEO_DURATION_MS` is a hardcoded constant for Gangsta's Paradise (~241,000 ms; verify exact value before shipping). When `serverNow` crosses `endAtServerMs`, the room transitions to COOLDOWN. The server does NOT trust per-client `onStateChange === ENDED` events.
+The server holds the canonical end time: `endAtServerMs = playAtServerMs + VIDEO_DURATION_MS`, where `VIDEO_DURATION_MS = 256_000` (Gangsta's Paradise, 4:16). When `serverNow` crosses `endAtServerMs`, the room transitions to COOLDOWN. The server does NOT trust per-client `onStateChange === ENDED` events.
 
 ### 5.5 Browser autoplay policy
 
@@ -311,5 +311,4 @@ Three layers, all in CI.
 
 ## 10. Open / verify before implementation
 
-- Confirm exact `VIDEO_DURATION_MS` for the canonical Gangsta's Paradise upload (`fPO76Jlnz6c`). The spec assumes ~241,000 ms; we'll measure once and pin.
 - Confirm the chosen host (Fly.io vs Railway vs Render) — affects only the Dockerfile / deploy config; spec is portable.
