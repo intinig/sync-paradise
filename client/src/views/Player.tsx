@@ -1,0 +1,50 @@
+import { useEffect, useState } from "react";
+import { useRoom } from "../state/room.js";
+import { Tile } from "../components/Tile.js";
+import { SyncIndicator } from "../components/SyncIndicator.js";
+
+export function Player(props: { getOffsetMs: () => number }) {
+  const { participants, you, videoId, playAtServerMs, offsetMs } = useRoom();
+  const [expectedSec, setExpectedSec] = useState<number | null>(null);
+  useEffect(() => {
+    if (!playAtServerMs) return;
+    const id = setInterval(() => {
+      const expected = (Date.now() + offsetMs - playAtServerMs) / 1000;
+      setExpectedSec(expected);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [playAtServerMs, offsetMs]);
+
+  if (!you) return null;
+  const others = participants.filter((p) => p.id !== you.id);
+  const me = participants.find((p) => p.id === you.id) ?? you;
+  return (
+    <div className="player-view">
+      <div style={{ position: "relative" }}>
+        <Tile
+          participant={me}
+          videoId={videoId}
+          muted={false}
+          playAtServerMs={playAtServerMs}
+          expectedSec={expectedSec}
+          getOffsetMs={props.getOffsetMs}
+          showLabel={false}
+        />
+        <SyncIndicator offsetMs={offsetMs} />
+      </div>
+      <div className="player-strip">
+        {others.map((p) => (
+          <Tile
+            key={p.id}
+            participant={p}
+            videoId={videoId}
+            muted={true}
+            playAtServerMs={playAtServerMs}
+            expectedSec={expectedSec}
+            getOffsetMs={props.getOffsetMs}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
