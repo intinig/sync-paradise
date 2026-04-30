@@ -11,8 +11,11 @@
  *   this branch, late joiners would replay from second 0 until the next drift
  *   tick yanked them forward.
  *
- * `playheadSec` clamps at 0 so a tiny negative skew (clock-offset noise around T)
- * doesn't seek to a negative time.
+ * `playheadSec` is the elapsed time since play started. When the live branch
+ * fires, `delayMs <= 0`, so `-delayMs / 1000 >= 0` — the Math.max(0, ...) is
+ * a defensive belt-and-braces, not load-bearing arithmetic. The branch
+ * triggers any time we open or reconnect after the scheduled play moment
+ * (late /grid open, refresh mid-PLAYING, dropped+reconnected WS).
  */
 export type StartAction =
   | { kind: "future"; preDelayMs: number; playInMs: number }

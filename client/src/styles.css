@@ -91,7 +91,14 @@ body::after {
 }
 .chyron .logout:hover { background: var(--cyan); color: var(--crt-blacker); }
 
-.stage { padding-top: 4rem; min-height: 100vh; }
+.stage {
+  /* Chyron is fixed; .stage padding pushes content below it. The chyron's
+     padding-top is `max(0.6rem, env(safe-area-inset-top))` so on notched
+     devices the chyron grows by the inset — the stage padding must grow by
+     the same amount or content slides under the chyron. */
+  padding-top: calc(4rem + env(safe-area-inset-top, 0px));
+  min-height: 100vh;
+}
 
 /* ----- LOBBY ----- */
 
@@ -388,13 +395,17 @@ body::after {
 /* Stable viewport height on iOS — the URL bar's show/hide collapse flips 100vh
    under our feet, which makes the stage shift while the user is scrolling.
    Using svh (small viewport height) anchors layout to the more conservative
-   value so content doesn't bounce. */
+   value so content doesn't bounce. .player-view is excluded here because it
+   also subtracts the chyron height (calc(100vh - 4rem)) — the svh override
+   below applies the same calc. */
 @supports (min-height: 100svh) {
   html, body, #root,
   #root > .app-shell,
-  .stage,
-  .player-view {
+  .stage {
     min-height: 100svh;
+  }
+  .player-view {
+    min-height: calc(100svh - 4rem);
   }
 }
 
@@ -432,9 +443,12 @@ body::after {
   }
   .chyron .channel { font-size: 0.7rem; }
   .chyron .timecode { font-size: 1rem; padding: 0.05rem 0.4rem; }
+  /* Hide the "▶ NAME" badge on small screens — EJECT alone is enough
+     chrome. Don't also blanket-hide unclassed spans inside .you, or the
+     "▶ GUEST FEED" label (a single class-less span when logged out)
+     disappears and the chyron's right side renders empty. */
   .chyron .you-name { display: none; }
-  .chyron .you span:not(.you-name) { display: none; }
-  .stage { padding-top: 3.6rem; }
+  .stage { padding-top: calc(3.6rem + env(safe-area-inset-top, 0px)); }
 
   /* Lobby — title shadow scales with viewport so the chromatic split
      doesn't look 7%-wide at 41px font; SMPTE bars shrunk; signin button

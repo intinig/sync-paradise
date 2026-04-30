@@ -44,7 +44,7 @@ describe("decideStartAction", () => {
     expect(action).toEqual({ kind: "live", playheadSec: 1 });
   });
 
-  it("clamps a tiny negative skew to playheadSec=0 (live, but at the very start)", () => {
+  it("returns a tiny positive playheadSec when play time has barely elapsed (live, but at the very start)", () => {
     // 1ms past the play time — boundary case; we want kind=live but playheadSec ~0.
     const action = decideStartAction({
       playAtServerMs: 1_000,
