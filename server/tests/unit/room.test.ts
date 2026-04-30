@@ -275,3 +275,103 @@ describe("Room: COOLDOWN -> LOBBY auto-loop", () => {
     expect(room.snapshot().state).toBe("COUNTDOWN");
   });
 });
+
+describe("Room: participant changes broadcast to all sockets", () => {
+  it("a participant joining during PLAYING (as new pending) does NOT broadcast to others, since pending is not in participants", () => {
+    // Late joiner is held as spectator; existing participants list is unchanged.
+    const { room, timers, sent } = makeRoom();
+    const aSock = { id: 1 };
+    const bSock = { id: 2 };
+    room.onSocketJoin(aSock, alice);
+    room.onSocketJoin(bSock, bob);
+    timers.advance(10_000); // -> PLAYING
+    sent.length = 0;
+    const cSock = { id: 3 };
+    room.onSocketJoin(cSock, carol);
+    // Only the joining socket should have received a room_state.
+    const stateMsgsToOthers = sent.filter(
+      (s) => s.msg.type === "room_state" && s.socket !== cSock,
+    );
+    expect(stateMsgsToOthers.length).toBe(0);
+  });
+
+  it("a third logged-in participant joining during COUNTDOWN broadcasts updated participant list to all sockets", () => {
+    const { room, sent } = makeRoom();
+    const aSock = { id: 1 };
+    const bSock = { id: 2 };
+    room.onSocketJoin(aSock, alice);
+    room.onSocketJoin(bSock, bob);
+    sent.length = 0;
+    const cSock = { id: 3 };
+    room.onSocketJoin(cSock, carol);
+    // a, b, and c each receive a room_state with all 3 participants.
+    for (const sock of [aSock, bSock, cSock]) {
+      const m = sent.find(
+        (s) => s.socket === sock && s.msg.type === "room_state",
+      )?.msg;
+      expect(m, `socket ${(sock as { id: number }).id} should receive room_state`).toBeDefined();
+      if (!m || m.type !== "room_state") throw new Error("narrowing");
+      expect(m.participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob", "u-carol"]);
+    }
+  });
+
+  it("a participant leaving during PLAYING (others remain) broadcasts updated participant list", () => {
+    const { room, timers, sent } = makeRoom();
+    const aSock = { id: 1 };
+    const bSock = { id: 2 };
+    const cSock = { id: 3 };
+    room.onSocketJoin(aSock, alice);
+    room.onSocketJoin(bSock, bob);
+    room.onSocketJoin(cSock, carol);
+    timers.advance(10_000); // -> PLAYING with 3 participants
+    sent.length = 0;
+    room.onSocketLeave(cSock);
+    // a and b each receive a room_state with the now-2-participant list.
+    for (const sock of [aSock, bSock]) {
+      const m = sent.find(
+        (s) => s.socket === sock && s.msg.type === "room_state",
+      )?.msg;
+      expect(m, `socket ${(sock as { id: number }).id} should receive room_state`).toBeDefined();
+      if (!m || m.type !== "room_state") throw new Error("narrowing");
+      expect(m.participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob"]);
+    }
+    // Room is still PLAYING (2 participants remain).
+    expect(room.snapshot().state).toBe("PLAYING");
+  });
+
+  it("a participant leaving during COOLDOWN broadcasts updated participant list", () => {
+    const { room, timers, sent } = makeRoom();
+    const aSock = { id: 1 };
+    const bSock = { id: 2 };
+    const cSock = { id: 3 };
+    room.onSocketJoin(aSock, alice);
+    room.onSocketJoin(bSock, bob);
+    room.onSocketJoin(cSock, carol);
+    timers.advance(10_000); // PLAYING
+    timers.advance(256_000); // -> COOLDOWN
+    sent.length = 0;
+    room.onSocketLeave(cSock);
+    for (const sock of [aSock, bSock]) {
+      const m = sent.find(
+        (s) => s.socket === sock && s.msg.type === "room_state",
+      )?.msg;
+      if (!m || m.type !== "room_state") throw new Error("narrowing");
+      expect(m.participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob"]);
+    }
+    expect(room.snapshot().state).toBe("COOLDOWN");
+  });
+
+  it("a spectator joining/leaving does NOT trigger a participant-change broadcast to others", () => {
+    const { room, sent } = makeRoom();
+    const aSock = { id: 1 };
+    room.onSocketJoin(aSock, alice);
+    sent.length = 0;
+    const sSock = { id: 2 };
+    room.onSocketJoin(sSock, null); // anonymous spectator
+    // Only the spectator socket should receive a room_state.
+    const stateToOthers = sent.filter(
+      (s) => s.msg.type === "room_state" && s.socket !== sSock,
+    );
+    expect(stateToOthers.length).toBe(0);
+  });
+});
