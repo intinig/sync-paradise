@@ -40,6 +40,13 @@ export function App() {
 
   if (!meChecked) return null;
   if (route === "grid") return <PublicGrid getOffsetMs={getOffsetMs} />;
-  if (state === "PLAYING" && you) return <Player getOffsetMs={getOffsetMs} />;
+  // Mid-round late joiners are reported as role="spectator" until the next
+  // COOLDOWN promotes them — they get the public grid, not the unmuted Player.
+  if (state === "PLAYING" && you?.role === "participant") {
+    return <Player getOffsetMs={getOffsetMs} />;
+  }
+  if (state === "PLAYING" && you?.role === "spectator") {
+    return <PublicGrid getOffsetMs={getOffsetMs} />;
+  }
   return <Lobby />;
 }
