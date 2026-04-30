@@ -1,19 +1,9 @@
-import { useEffect, useState } from "react";
 import { useRoom } from "../state/room.js";
 import { Tile } from "../components/Tile.js";
 import { SyncIndicator } from "../components/SyncIndicator.js";
 
 export function Player(props: { getOffsetMs: () => number }) {
-  const { participants, you, videoId, playAtServerMs, offsetMs } = useRoom();
-  const [expectedSec, setExpectedSec] = useState<number | null>(null);
-  useEffect(() => {
-    if (!playAtServerMs) return;
-    const id = setInterval(() => {
-      const expected = (Date.now() + offsetMs - playAtServerMs) / 1000;
-      setExpectedSec(expected);
-    }, 5000);
-    return () => clearInterval(id);
-  }, [playAtServerMs, offsetMs]);
+  const { participants, you, videoId, playAtServerMs, offsetMs, expectedSec } = useRoom();
 
   if (!you) return null;
   const others = participants.filter((p) => p.id !== you.id);

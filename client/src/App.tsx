@@ -69,7 +69,15 @@ function Chyron(props: { route: "main" | "grid" }) {
 
 export function App() {
   const route = window.location.pathname.startsWith("/grid") ? "grid" : "main";
-  const { state, applyRoomState, applyParticipants, setOffset, setConnected, you } = useRoom();
+  const {
+    state,
+    applyRoomState,
+    applyParticipants,
+    setOffset,
+    setConnected,
+    setExpectedSec,
+    you,
+  } = useRoom();
   const [meChecked, setMeChecked] = useState(false);
   const [ws, setWs] = useState<SyncWs | null>(null);
 
@@ -89,13 +97,17 @@ export function App() {
           setConnected(true);
         } else if (msg.type === "participants") {
           applyParticipants(msg.participants);
+        } else if (msg.type === "playhead") {
+          // Server-authoritative playhead. Tiles consume this via the store
+          // and pass it to correctDrift which seeks if drift exceeds 300ms.
+          setExpectedSec(msg.expectedSec);
         }
       },
       onOffsetChange: setOffset,
     });
     setWs(sock);
     return () => sock.close();
-  }, [meChecked, applyRoomState, applyParticipants, setConnected, setOffset]);
+  }, [meChecked, applyRoomState, applyParticipants, setConnected, setOffset, setExpectedSec]);
 
   const getOffsetMs = useMemo(() => () => ws?.offsetMs() ?? 0, [ws]);
 
