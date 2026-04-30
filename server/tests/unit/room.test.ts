@@ -248,3 +248,30 @@ describe("Room: late joiner during PLAYING", () => {
     expect(room.snapshot().participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob"]);
   });
 });
+
+describe("Room: COOLDOWN -> LOBBY auto-loop", () => {
+  it("after cooldownMs, returns to LOBBY", () => {
+    const { room, timers } = makeRoom();
+    const s1 = { id: 1 };
+    const s2 = { id: 2 };
+    room.onSocketJoin(s1, alice);
+    room.onSocketJoin(s2, bob);
+    timers.advance(10_000);
+    room.onSocketLeave(s1);
+    room.onSocketLeave(s2);
+    expect(room.snapshot().state).toBe("COOLDOWN");
+    timers.advance(30_000);
+    expect(room.snapshot().state).toBe("LOBBY");
+  });
+
+  it("if 2+ participants remain after COOLDOWN, COUNTDOWN auto-fires", () => {
+    const { room, timers } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000); // PLAYING
+    timers.advance(256_000); // COOLDOWN
+    expect(room.snapshot().state).toBe("COOLDOWN");
+    timers.advance(30_000); // back to LOBBY, then COUNTDOWN
+    expect(room.snapshot().state).toBe("COUNTDOWN");
+  });
+});
