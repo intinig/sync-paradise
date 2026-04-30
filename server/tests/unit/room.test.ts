@@ -42,7 +42,7 @@ describe("Room: lobby & joins", () => {
     const msg = sent.find((s) => s.socket === sock)?.msg;
     expect(msg).toBeDefined();
     expect(msg!.type).toBe("room_state");
-    if (msg!.type !== "room_state") throw new Error("type narrowing");
+    if (!msg || msg.type !== "room_state") throw new Error("type narrowing");
     expect(msg.state).toBe("LOBBY");
     expect(msg.you).toEqual({ ...alice, role: "participant" });
     expect(msg.participants).toEqual([alice]);
@@ -54,7 +54,7 @@ describe("Room: lobby & joins", () => {
     room.onSocketJoin(sock, null);
     const msg = sent.find((s) => s.socket === sock)?.msg;
     expect(msg!.type).toBe("room_state");
-    if (msg!.type !== "room_state") throw new Error("type narrowing");
+    if (!msg || msg.type !== "room_state") throw new Error("type narrowing");
     expect(msg.you).toBeNull();
     expect(msg.participants).toEqual([]);
   });
@@ -216,7 +216,7 @@ describe("Room: late joiner during PLAYING", () => {
     room.onSocketJoin(carolSocket, carol);
     const carolMsg = sent.find((s) => s.socket === carolSocket)?.msg;
     expect(carolMsg!.type).toBe("room_state");
-    if (carolMsg!.type !== "room_state") throw new Error("type narrowing");
+    if (!carolMsg || carolMsg.type !== "room_state") throw new Error("type narrowing");
     expect(carolMsg.you?.role).toBe("spectator");
     expect(carolMsg.participants.map((p) => p.id).sort()).toEqual(["u-alice", "u-bob"]);
   });
