@@ -12,4 +12,9 @@ export function googleLoginUrl(): string {
 
 export async function logout(): Promise<void> {
   await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
+  // Reload so the WS reconnects without the now-cleared cookie and the
+  // React store re-derives `you = null` from a fresh /me. Without this the
+  // cookie is gone server-side but the in-memory state still shows the user
+  // as logged in until the next manual refresh.
+  window.location.reload();
 }
