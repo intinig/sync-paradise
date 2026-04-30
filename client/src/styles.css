@@ -10,6 +10,15 @@
   --static: #fbf6e6;
   --green-mute: #75ff67;
 
+  /* Total chyron height, including its safe-area-aware padding-top. The
+     chyron's padding-top is `max(0.6rem, env(safe-area-inset-top))` — on a
+     notched device it grows by however much the inset exceeds 0.6rem. The
+     constant 3.4rem covers font + line-height + padding-bottom. Stage
+     padding-top and player-view min-height both consume this var so the
+     layout tracks the chyron exactly, with no gap or overflow on notched
+     devices. Mobile breakpoint overrides the base for the smaller chyron. */
+  --chyron-height: calc(3.4rem + max(0.6rem, env(safe-area-inset-top, 0px)));
+
   font-family: "IBM Plex Mono", monospace;
   color-scheme: dark;
 }
@@ -91,7 +100,15 @@ body::after {
 }
 .chyron .logout:hover { background: var(--cyan); color: var(--crt-blacker); }
 
-.stage { padding-top: 4rem; min-height: 100vh; }
+.stage {
+  /* Chyron is fixed; .stage padding pushes content below it. Plain-value
+     fallback first (for browsers that can't parse the env-based calc),
+     then the var which mirrors the chyron's `max(0.6rem, env(...))`
+     padding-top exactly so there's no gap on notched devices. */
+  padding-top: 4rem;
+  padding-top: var(--chyron-height);
+  min-height: 100vh;
+}
 
 /* ----- LOBBY ----- */
 
@@ -192,7 +209,11 @@ body::after {
 .player-view {
   max-width: 1400px; margin: 0 auto; padding: 1rem;
   display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem;
+  /* Subtract the chyron-aware var so the player-view fills the rest of
+     the viewport without forcing extra scroll on notched devices. Plain
+     fallback first for browsers that can't parse var-in-calc. */
   min-height: calc(100vh - 4rem);
+  min-height: calc(100vh - var(--chyron-height));
 }
 @media (max-width: 900px) {
   .player-view { grid-template-columns: 1fr; }
@@ -388,13 +409,17 @@ body::after {
 /* Stable viewport height on iOS — the URL bar's show/hide collapse flips 100vh
    under our feet, which makes the stage shift while the user is scrolling.
    Using svh (small viewport height) anchors layout to the more conservative
-   value so content doesn't bounce. */
+   value so content doesn't bounce. .player-view is excluded here because it
+   also subtracts the chyron height (calc(100vh - 4rem)) — the svh override
+   below applies the same calc. */
 @supports (min-height: 100svh) {
   html, body, #root,
   #root > .app-shell,
-  .stage,
-  .player-view {
+  .stage {
     min-height: 100svh;
+  }
+  .player-view {
+    min-height: calc(100svh - var(--chyron-height));
   }
 }
 
@@ -419,6 +444,14 @@ body::after {
 
 /* ----- ≤ 640px: phones ----- */
 @media (max-width: 640px) {
+  /* Tighten the chyron-height var so .stage / .player-view get less padding
+     on phones, matching the smaller chyron at this breakpoint. Same
+     `max(safe-area-inset-top)` shape as the root rule — the inset replaces
+     the 0.6rem base on notched devices rather than stacking on top of it. */
+  :root {
+    --chyron-height: calc(3rem + max(0.6rem, env(safe-area-inset-top, 0px)));
+  }
+
   /* Tighter chyron — channel truncates instead of wrapping; timecode shrinks
      so it still fits with the EJECT button and REC indicator. The "▶ NAME"
      label drops because EJECT alone is enough chrome. */
@@ -432,9 +465,13 @@ body::after {
   }
   .chyron .channel { font-size: 0.7rem; }
   .chyron .timecode { font-size: 1rem; padding: 0.05rem 0.4rem; }
+  /* Hide the "▶ NAME" badge on small screens — EJECT alone is enough
+     chrome. Don't also blanket-hide unclassed spans inside .you, or the
+     "▶ GUEST FEED" label (a single class-less span when logged out)
+     disappears and the chyron's right side renders empty. */
   .chyron .you-name { display: none; }
-  .chyron .you span:not(.you-name) { display: none; }
-  .stage { padding-top: 3.6rem; }
+  /* .stage / .player-view padding is driven by --chyron-height (overridden
+     above) — no per-element override needed. */
 
   /* Lobby — title shadow scales with viewport so the chromatic split
      doesn't look 7%-wide at 41px font; SMPTE bars shrunk; signin button

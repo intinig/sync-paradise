@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoom } from "./state/room.js";
 import { SyncWs } from "./api/ws.js";
 import { fetchMe, logout } from "./api/auth.js";
@@ -13,23 +13,30 @@ function pad(n: number): string {
 
 function Chyron(props: { route: "main" | "grid" }) {
   const { state, you } = useRoom();
-  const [tc, setTc] = useState({ h: 0, m: 0, s: 0, f: 0 });
-  // Run a 30fps timecode burn since session start. Decorative.
+  // Decorative session-time burn. Derived from a fixed start timestamp on
+  // every tick (rather than incrementing state from a setInterval drift),
+  // which keeps the displayed value accurate even if the runtime throttles
+  // intervals on backgrounded tabs or low-end mobile.
+  const [, forceTick] = useState(0);
+  const startRef = useRef<number>(performance.now());
   useEffect(() => {
-    const id = setInterval(() => {
-      setTc((prev) => {
-        const f = (prev.f + 1) % 30;
-        const sBump = prev.f === 29 ? 1 : 0;
-        const s = (prev.s + sBump) % 60;
-        const mBump = prev.f === 29 && prev.s === 59 ? 1 : 0;
-        const m = (prev.m + mBump) % 60;
-        const hBump = prev.f === 29 && prev.s === 59 && prev.m === 59 ? 1 : 0;
-        const h = (prev.h + hBump) % 24;
-        return { h, m, s, f };
-      });
-    }, 33);
+    // ~30fps tick — the timecode burn shows frames in the 0–29 column,
+    // so updating slower than that makes the frame counter visibly skip
+    // values (jumping 0 → 3 → 6 …). 33ms keeps the visual cadence honest
+    // while the value itself is still derived from performance.now() so
+    // it stays accurate across throttled tabs and slow devices.
+    const id = setInterval(() => forceTick((n) => n + 1), 33);
     return () => clearInterval(id);
   }, []);
+  const elapsedMs = performance.now() - startRef.current;
+  const totalFrames = Math.floor((elapsedMs / 1000) * 30);
+  const f = totalFrames % 30;
+  const totalSec = Math.floor(totalFrames / 30);
+  const s = totalSec % 60;
+  const totalMin = Math.floor(totalSec / 60);
+  const m = totalMin % 60;
+  const h = Math.floor(totalMin / 60) % 24;
+  const tc = { h, m, s, f };
 
   const channel =
     props.route === "grid"

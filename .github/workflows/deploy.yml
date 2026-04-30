@@ -5,11 +5,12 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
-# Only one in-flight deploy at a time. Newer pushes cancel older runs of this
-# workflow before triggering Render. Render itself queues builds, but this
-# avoids us telling it to deploy a now-stale commit.
+# Scoped to the ref. The job-level guard below restricts execution to main, so
+# in practice only main runs reach the deploy step — but keying concurrency on
+# `github.ref` keeps any skipped non-main run from cancelling an in-flight main
+# deploy if the guard is ever loosened.
 concurrency:
-  group: render-deploy
+  group: render-deploy-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -18,6 +19,10 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Only deploy from main. workflow_dispatch is otherwise unfiltered, so
+    # without this guard anyone with Actions write could trigger a Render
+    # build of an arbitrary branch's code.
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Trigger Render deploy
         env:
@@ -36,7 +41,14 @@ jobs:
           # GITHUB_SHA is provided automatically by Actions and is always the
           # 40-char commit hex; safe to interpolate into JSON.
           payload=$(printf '{"commitId":"%s"}' "$GITHUB_SHA")
+          # --max-time bounds total request duration; --connect-timeout bounds
+          # just the TCP/TLS connect phase. --retry handles transient 5xx
+          # without retrying our POST against the same idempotency window.
           response=$(curl -fsSL \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --retry 2 \
+            --retry-delay 3 \
             -X POST \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Accept: application/json" \
@@ -44,7 +56,10 @@ jobs:
             "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
             -d "$payload")
           echo "$response"
-          deploy_id=$(echo "$response" | sed -n 's/.*"id":"\(dep-[a-zA-Z0-9]*\)".*/\1/p' | head -n1)
+          # jq is preinstalled on ubuntu-latest runners; using it instead of
+          # sed makes the response parsing tolerant of whitespace, ordering,
+          # and shape changes in Render's API.
+          deploy_id=$(echo "$response" | jq -r '.id // empty')
           if [ -n "$deploy_id" ]; then
             short_sha="${GITHUB_SHA:0:10}"
             echo "::notice::Triggered Render deploy ${deploy_id} for ${short_sha}"
