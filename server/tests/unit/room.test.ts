@@ -135,3 +135,16 @@ describe("Room: COUNTDOWN cancellation", () => {
     expect(room.snapshot().state).toBe("LOBBY");
   });
 });
+
+describe("Room: COUNTDOWN -> PLAYING", () => {
+  it("after countdownMs elapses, room is PLAYING with endAtServerMs = playAt + duration", () => {
+    const { room, timers } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    const playAt = room.snapshot().playAtServerMs!;
+    timers.advance(10_000);
+    const snap = room.snapshot();
+    expect(snap.state).toBe("PLAYING");
+    expect(snap.endAtServerMs).toBe(playAt + 256_000);
+  });
+});

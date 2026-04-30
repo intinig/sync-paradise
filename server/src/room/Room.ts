@@ -157,7 +157,22 @@ export class Room {
     this.maybeStartCountdown();
   }
   private transitionToPlaying(): void {
+    if (this.state !== "COUNTDOWN" || this.playAtServerMs === null) return;
     this.state = "PLAYING";
+    this.endAtServerMs = this.playAtServerMs + this.opts.videoDurationMs;
+    this.countdownTimer = null;
+    const remaining = this.endAtServerMs - this.opts.timers.now();
+    this.endTimer = this.opts.timers.setTimeout(
+      () => this.transitionToCooldown(),
+      Math.max(0, remaining),
+    );
+    this.playheadInterval = this.opts.timers.setInterval(() => {
+      const expectedSec = (this.opts.timers.now() - this.playAtServerMs!) / 1000;
+      const serverNow = this.opts.timers.now();
+      for (const socket of this.sockets.keys()) {
+        this.opts.send(socket, { type: "playhead", expectedSec, serverNow });
+      }
+    }, this.opts.playheadIntervalMs);
     this.broadcastState();
   }
   private transitionToCooldown(): void {
