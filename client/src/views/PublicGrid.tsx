@@ -2,12 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoom } from "../state/room.js";
 import { Tile } from "../components/Tile.js";
 import { Countdown } from "../components/Countdown.js";
-
-function formatFeedTc(sec: number | null): string {
-  if (sec === null || !Number.isFinite(sec) || sec < 0) return "00:00";
-  const total = Math.max(0, Math.floor(sec));
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
+import { formatTimecode } from "../lib/time.js";
 
 export function PublicGrid(props: { getOffsetMs: () => number }) {
   const {
@@ -21,17 +16,16 @@ export function PublicGrid(props: { getOffsetMs: () => number }) {
   } = useRoom();
   const [allUnmuted, setAllUnmuted] = useState(false);
 
-  // Smooth-ticking display value for the banner only. Interpolated locally
-  // each second from playAtServerMs so the banner looks alive between the
-  // server's 5s playhead broadcasts. Tiles use the canonical `expectedSec`
-  // from the store (server-authoritative) for drift correction.
-  const [bannerSec, setBannerSec] = useState<number | null>(null);
+  // Smooth 1Hz display value for the banner timecode AND for the per-tile
+  // burned-in timecode. Drift correction on each tile still uses the
+  // server-authoritative `expectedSec` from the store.
+  const [displaySec, setDisplaySec] = useState<number | null>(null);
   useEffect(() => {
-    if (state !== "PLAYING" || !playAtServerMs) {
-      setBannerSec(null);
+    if (state !== "PLAYING" || playAtServerMs === null) {
+      setDisplaySec(null);
       return;
     }
-    const tick = () => setBannerSec((Date.now() + offsetMs - playAtServerMs) / 1000);
+    const tick = () => setDisplaySec((Date.now() + offsetMs - playAtServerMs) / 1000);
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -49,7 +43,7 @@ export function PublicGrid(props: { getOffsetMs: () => number }) {
       <div className="grid-banner">
         ▌ SYNCER'S PARADISE <span className="sep">/</span> GLOBAL FEED <span className="sep">/</span>{" "}
         {camCount} CAM{camCount === 1 ? "" : "S"} {live ? "LIVE" : "STANDBY"}
-        {live && <span className="feed-tc">{formatFeedTc(bannerSec)}</span>}
+        {live && <span className="feed-tc">{formatTimecode(displaySec)}</span>}
       </div>
 
       <div className="cam-grid">
@@ -70,6 +64,7 @@ export function PublicGrid(props: { getOffsetMs: () => number }) {
               muted={!allUnmuted}
               playAtServerMs={playAtServerMs}
               expectedSec={expectedSec}
+              displaySec={displaySec}
               getOffsetMs={props.getOffsetMs}
               variant="cam"
               camNumber={camNumberFor(p.id)}

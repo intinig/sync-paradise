@@ -89,7 +89,7 @@ export function App() {
     if (!meChecked) return;
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const url = `${proto}://${window.location.host}/ws`;
-    const sock = new SyncWs({
+    const sock: SyncWs = new SyncWs({
       url,
       onMessage: (msg) => {
         if (msg.type === "room_state") {
@@ -98,9 +98,22 @@ export function App() {
         } else if (msg.type === "participants") {
           applyParticipants(msg.participants);
         } else if (msg.type === "playhead") {
-          // Server-authoritative playhead. Tiles consume this via the store
-          // and pass it to correctDrift which seeks if drift exceeds 300ms.
-          setExpectedSec(msg.expectedSec);
+          // The server's `expectedSec` was true at the moment it called
+          // `serverNow`. By the time this message arrived, server-time has
+          // advanced by roughly half the round-trip — using the raw value
+          // makes the player look ~50–300ms behind for the entire window
+          // until the next message, which on cellular alone can exceed the
+          // drift threshold and trigger a needless seek.
+          //
+          // Compensate by adding the wall-clock time elapsed between the
+          // server's broadcast and now (in server time, which we estimate
+          // via the NTP-style offset). On a local network this adjustment
+          // is small; on cellular it's the difference between a smooth
+          // playback and a glitch every 5 seconds.
+          const offset = sock.offsetMs();
+          const serverNowEstimate = Date.now() + offset;
+          const elapsedSinceBroadcastMs = Math.max(0, serverNowEstimate - msg.serverNow);
+          setExpectedSec(msg.expectedSec + elapsedSinceBroadcastMs / 1000);
         }
       },
       onOffsetChange: setOffset,

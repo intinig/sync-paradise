@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Participant } from "../../../shared/protocol.js";
 import { createSyncedPlayer, type SyncedPlayer } from "../player/youtube.js";
+import { formatTimecode } from "../lib/time.js";
 
 export type TileVariant = "primary" | "pip" | "cam";
 
@@ -9,19 +10,23 @@ export interface TileProps {
   videoId: string;
   muted: boolean;
   playAtServerMs: number | null;
+  /**
+   * Server-authoritative playhead position. Drives drift correction (the
+   * player seeks if its currentTime is more than DRIFT_TOLERANCE_SEC from
+   * this value). Updates every 5s when the server broadcasts.
+   */
   expectedSec: number | null;
+  /**
+   * Smooth display value for the timecode burn overlay only. Updates at 1Hz
+   * locally so the badge ticks visibly between server broadcasts. If
+   * omitted, falls back to expectedSec — but expectedSec only updates every
+   * 5s, so the badge would appear frozen for long stretches.
+   */
+  displaySec?: number | null;
   getOffsetMs: () => number;
   variant?: TileVariant;
   camNumber?: number;
   isLive?: boolean;
-}
-
-function formatTimecode(sec: number | null): string {
-  if (sec === null || !Number.isFinite(sec) || sec < 0) return "00:00";
-  const total = Math.max(0, Math.floor(sec));
-  const mm = String(Math.floor(total / 60)).padStart(2, "0");
-  const ss = String(total % 60).padStart(2, "0");
-  return `${mm}:${ss}`;
 }
 
 function formatCam(n: number | undefined): string {
@@ -43,7 +48,10 @@ export function Tile(props: TileProps) {
       muted: props.muted,
       getOffsetMs: props.getOffsetMs,
     }).then((p) => {
-      if (cancelled) { p.dispose(); return; }
+      if (cancelled) {
+        p.dispose();
+        return;
+      }
       playerRef.current = p;
       if (!props.muted) {
         (window as unknown as { __lastPlayer?: typeof p }).__lastPlayer = p;
@@ -70,11 +78,19 @@ export function Tile(props: TileProps) {
     if (props.expectedSec !== null) playerRef.current?.correctDrift(props.expectedSec);
   }, [props.expectedSec]);
 
-  const tc = formatTimecode(props.expectedSec);
+  // Display source: prefer the smooth, locally-interpolated `displaySec`; fall
+  // back to the authoritative `expectedSec` if no display value is provided.
+  const tcSource = props.displaySec ?? props.expectedSec;
+  const tc = formatTimecode(tcSource);
   const cam = formatCam(props.camNumber);
-  const className = `tile ${
-    variant === "primary" ? "tile-primary" : variant === "pip" ? "tile-pip" : "tile-cam"
-  }`;
+
+  // The `tile-grid` variant class is *not* `.tile-cam` — that name is taken
+  // by the absolute-positioned CAM-NN badge inside the tile. Sharing the
+  // class here would inherit `position: absolute; top: 0.3rem; ...` onto the
+  // grid container, breaking layout.
+  const variantClass =
+    variant === "primary" ? "tile-primary" : variant === "pip" ? "tile-pip" : "tile-grid";
+  const className = `tile ${variantClass}`;
 
   return (
     <div className={className}>
@@ -86,7 +102,7 @@ export function Tile(props: TileProps) {
             <span className="d" />
             REC
           </div>
-          {props.expectedSec !== null && <div className="tile-tc">{tc}</div>}
+          {tcSource !== null && tcSource !== undefined && <div className="tile-tc">{tc}</div>}
           <div className="tile-lower-third">
             <span className="name">{props.participant.name}</span>
             <span className="show">SYNCER'S PARADISE</span>
@@ -98,7 +114,7 @@ export function Tile(props: TileProps) {
       {variant === "pip" && (
         <>
           <div className="tile-cam">{cam}</div>
-          {props.expectedSec !== null && <div className="tile-tc">{tc}</div>}
+          {tcSource !== null && tcSource !== undefined && <div className="tile-tc">{tc}</div>}
           <div className="tile-name-tag">{props.participant.name}</div>
         </>
       )}
@@ -106,7 +122,7 @@ export function Tile(props: TileProps) {
       {variant === "cam" && (
         <>
           <div className="tile-cam">{cam}</div>
-          {props.expectedSec !== null && <div className="tile-tc">{tc}</div>}
+          {tcSource !== null && tcSource !== undefined && <div className="tile-tc">{tc}</div>}
           {props.isLive && (
             <div className="tile-rec" aria-hidden="true">
               <span className="d" />
