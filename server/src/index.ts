@@ -27,7 +27,13 @@ app.get("/me", async (req, res) => {
     res.json(null);
     return;
   }
-  const value = decodeURIComponent(cookie.split("=").slice(1).join("="));
+  let value: string;
+  try {
+    value = decodeURIComponent(cookie.split("=").slice(1).join("="));
+  } catch {
+    res.json(null);
+    return;
+  }
   const user = await unsealSession(value, config.sessionSecret);
   res.json(user);
 });

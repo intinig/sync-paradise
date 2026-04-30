@@ -70,6 +70,17 @@ describe("WS server", () => {
     ws.close();
   });
 
+  it("malformed cookie value does not crash the server; falls through to anonymous", async () => {
+    // %ZZ is invalid percent-encoding — decodeURIComponent throws on it.
+    const malformed = `${COOKIE_NAME}=%ZZ`;
+    const { ws, messages } = await connect(srv.port, malformed);
+    await waitFor(() => messages.find((m) => m.type === "room_state"));
+    const msg = messages.find((m) => m.type === "room_state")!;
+    if (msg.type !== "room_state") throw new Error("narrowing");
+    expect(msg.you).toBeNull();
+    ws.close();
+  });
+
   it("authed client (sealed cookie) receives room_state with role=participant", async () => {
     const cookieValue = await sealSession(
       { id: "u-1", name: "Alice", picture: "p.jpg" },

@@ -17,7 +17,6 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
-    "cookie": "^1.0.2",
     "express": "^5.0.0",
     "iron-session": "^8.0.4",
     "ws": "^8.18.0",

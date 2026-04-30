@@ -18,7 +18,14 @@ function parseCookieHeader(header: string | undefined, name: string): string | n
   if (!header) return null;
   for (const part of header.split(";")) {
     const [k, ...rest] = part.trim().split("=");
-    if (k === name) return decodeURIComponent(rest.join("="));
+    if (k === name) {
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        // Malformed percent-encoding in untrusted Cookie header.
+        return null;
+      }
+    }
   }
   return null;
 }
@@ -43,36 +50,45 @@ export function mountWs(server: HttpServer, opts: MountWsOptions): { room: Room 
   });
 
   server.on("upgrade", async (req, socket, head) => {
-    if (!req.url || !req.url.startsWith("/ws")) {
-      socket.destroy();
-      return;
+    try {
+      if (!req.url || !req.url.startsWith("/ws")) {
+        socket.destroy();
+        return;
+      }
+      const cookieValue = parseCookieHeader(req.headers.cookie, COOKIE_NAME);
+      let user: Participant | null = null;
+      if (cookieValue) {
+        user = await unsealSession(cookieValue, opts.sessionSecret);
+      }
+      // The TCP socket may have closed during the await above.
+      if (socket.destroyed) return;
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        const key: object = {};
+        sockToWs.set(key, ws);
+        room.onSocketJoin(key, user);
+        ws.on("message", (data) => {
+          let msg: ClientMessage;
+          try { msg = JSON.parse(data.toString()) as ClientMessage; } catch { return; }
+          if (msg.type === "ping") {
+            const pong: ServerMessage = { type: "pong", t0: msg.t0, t1: timers.now() };
+            if (ws.readyState === ws.OPEN) {
+              try { ws.send(JSON.stringify(pong)); } catch { /* dead socket */ }
+            }
+          }
+        });
+        ws.on("close", () => {
+          room.onSocketLeave(key);
+          sockToWs.delete(key);
+        });
+        ws.on("error", () => {
+          room.onSocketLeave(key);
+          sockToWs.delete(key);
+        });
+      });
+    } catch (err) {
+      console.error("[ws] upgrade error", err);
+      if (!socket.destroyed) socket.destroy();
     }
-    const cookieValue = parseCookieHeader(req.headers.cookie, COOKIE_NAME);
-    let user: Participant | null = null;
-    if (cookieValue) {
-      user = await unsealSession(cookieValue, opts.sessionSecret);
-    }
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      const key: object = {};
-      sockToWs.set(key, ws);
-      room.onSocketJoin(key, user);
-      ws.on("message", (data) => {
-        let msg: ClientMessage;
-        try { msg = JSON.parse(data.toString()) as ClientMessage; } catch { return; }
-        if (msg.type === "ping") {
-          const pong: ServerMessage = { type: "pong", t0: msg.t0, t1: timers.now() };
-          if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(pong));
-        }
-      });
-      ws.on("close", () => {
-        room.onSocketLeave(key);
-        sockToWs.delete(key);
-      });
-      ws.on("error", () => {
-        room.onSocketLeave(key);
-        sockToWs.delete(key);
-      });
-    });
   });
 
   return { room };

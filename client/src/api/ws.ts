@@ -60,7 +60,9 @@ export class SyncWs {
   }
 
   private sendPing(): void {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const msg: ClientMessage = { type: "ping", t0: Date.now() };
-    this.ws?.send(JSON.stringify(msg));
+    try { ws.send(JSON.stringify(msg)); } catch { /* connection dropped */ }
   }
 }

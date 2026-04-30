@@ -6,3 +6,6 @@ coverage/
 playwright-report/
 test-results/
 .DS_Store
+.claude/
+node-compile-cache/
+tsx-*/
