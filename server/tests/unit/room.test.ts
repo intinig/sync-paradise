@@ -110,3 +110,28 @@ describe("Room: COUNTDOWN start", () => {
     expect(room.snapshot().playAtServerMs).toBe(original);
   });
 });
+
+describe("Room: COUNTDOWN cancellation", () => {
+  it("if a participant disconnects during COUNTDOWN and count drops to 1, returns to LOBBY", () => {
+    const { room } = makeRoom();
+    const s1 = { id: 1 };
+    const s2 = { id: 2 };
+    room.onSocketJoin(s1, alice);
+    room.onSocketJoin(s2, bob);
+    expect(room.snapshot().state).toBe("COUNTDOWN");
+    room.onSocketLeave(s2);
+    expect(room.snapshot().state).toBe("LOBBY");
+    expect(room.snapshot().playAtServerMs).toBeNull();
+  });
+
+  it("the cancelled COUNTDOWN does not later trigger PLAYING when its timer would have fired", () => {
+    const { room, timers } = makeRoom();
+    const s1 = { id: 1 };
+    const s2 = { id: 2 };
+    room.onSocketJoin(s1, alice);
+    room.onSocketJoin(s2, bob);
+    room.onSocketLeave(s2);
+    timers.advance(20_000);
+    expect(room.snapshot().state).toBe("LOBBY");
+  });
+});

@@ -135,7 +135,26 @@ export class Room {
   private transitionToLobby(): void {
     this.state = "LOBBY";
     this.playAtServerMs = null;
+    this.endAtServerMs = null;
+    this.cooldownEndsAtServerMs = null;
+    if (this.countdownTimer !== null) {
+      this.opts.timers.clearTimeout(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    if (this.endTimer !== null) {
+      this.opts.timers.clearTimeout(this.endTimer);
+      this.endTimer = null;
+    }
+    if (this.cooldownTimer !== null) {
+      this.opts.timers.clearTimeout(this.cooldownTimer);
+      this.cooldownTimer = null;
+    }
+    if (this.playheadInterval !== null) {
+      this.opts.timers.clearInterval(this.playheadInterval);
+      this.playheadInterval = null;
+    }
     this.broadcastState();
+    this.maybeStartCountdown();
   }
   private transitionToPlaying(): void {
     this.state = "PLAYING";
