@@ -148,3 +148,20 @@ describe("Room: COUNTDOWN -> PLAYING", () => {
     expect(snap.endAtServerMs).toBe(playAt + 256_000);
   });
 });
+
+describe("Room: playhead broadcast", () => {
+  it("emits a playhead message every 5 seconds during PLAYING", () => {
+    const { room, timers, sent } = makeRoom();
+    room.onSocketJoin({ id: 1 }, alice);
+    room.onSocketJoin({ id: 2 }, bob);
+    timers.advance(10_000); // -> PLAYING
+    sent.length = 0;
+    timers.advance(5_000);
+    const heads1 = sent.filter((s) => s.msg.type === "playhead");
+    expect(heads1.length).toBe(2); // one per socket
+    expect((heads1[0].msg as { expectedSec: number }).expectedSec).toBeCloseTo(5, 5);
+    timers.advance(5_000);
+    const heads2 = sent.filter((s) => s.msg.type === "playhead");
+    expect(heads2.length).toBe(4);
+  });
+});
