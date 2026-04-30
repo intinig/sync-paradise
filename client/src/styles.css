@@ -354,3 +354,196 @@ body::after {
 .countdown-inline {
   font-family: "VT323", monospace; font-size: 1.4rem; color: var(--amber); letter-spacing: 0.05em;
 }
+
+/* ============================================================================
+ * MOBILE PASS
+ *
+ * Goal: keep the full VHS aesthetic on phones — never collapse to "generic
+ * mobile" — while making sure layout, touch targets, performance, and iOS
+ * specifics (notch, home indicator, dynamic URL bar) all behave.
+ *
+ * Breakpoints used:
+ *   ≤ 900px  — already handled in the desktop layout (player view collapses)
+ *   ≤ 640px  — phones in landscape, small tablets
+ *   ≤ 480px  — phones in portrait
+ * ========================================================================== */
+
+/* iOS safe-area awareness: chyron sits over the notch / dynamic island,
+   bottom-anchored chrome must clear the home indicator. The max() falls
+   back gracefully on browsers without env() support. */
+.chyron {
+  padding-top: max(0.6rem, env(safe-area-inset-top));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+.unmute-floor {
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  right: max(1rem, env(safe-area-inset-right));
+}
+.footer-tc {
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: max(1rem, env(safe-area-inset-left));
+}
+
+/* Stable viewport height on iOS — the URL bar's show/hide collapse flips 100vh
+   under our feet, which makes the stage shift while the user is scrolling.
+   Using svh (small viewport height) anchors layout to the more conservative
+   value so content doesn't bounce. */
+@supports (min-height: 100svh) {
+  html, body, #root,
+  #root > .app-shell,
+  .stage,
+  .player-view {
+    min-height: 100svh;
+  }
+}
+
+/* Touch targets — the EJECT button, the unmute toggle, and the grid link
+   are all keyboard/mouse-sized at desktop. On any coarse pointer device
+   (phones + tablets) bump them to the iOS HIG minimum of 44pt. */
+@media (hover: none) and (pointer: coarse) {
+  .chyron .logout {
+    min-height: 44px;
+    padding: 0.55rem 0.9rem;
+    font-size: 0.78rem;
+  }
+  .unmute-floor {
+    min-height: 44px;
+    padding: 0.7rem 1.1rem;
+  }
+  .lobby-grid-link {
+    display: inline-block;
+    padding: 0.6rem 0.4rem;
+  }
+}
+
+/* ----- ≤ 640px: phones ----- */
+@media (max-width: 640px) {
+  /* Tighter chyron — channel truncates instead of wrapping; timecode shrinks
+     so it still fits with the EJECT button and REC indicator. The "▶ NAME"
+     label drops because EJECT alone is enough chrome. */
+  .chyron {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    gap: 0.6rem;
+    padding-left: max(0.6rem, env(safe-area-inset-left));
+    padding-right: max(0.6rem, env(safe-area-inset-right));
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+  }
+  .chyron .channel { font-size: 0.7rem; }
+  .chyron .timecode { font-size: 1rem; padding: 0.05rem 0.4rem; }
+  .chyron .you-name { display: none; }
+  .chyron .you span:not(.you-name) { display: none; }
+  .stage { padding-top: 3.6rem; }
+
+  /* Lobby — title shadow scales with viewport so the chromatic split
+     doesn't look 7%-wide at 41px font; SMPTE bars shrunk; signin button
+     shadow tightened so it fits the viewport with margin. */
+  .lobby { padding: 1rem 1rem 4rem; }
+  .lobby-colorbars { height: 56px; margin-bottom: 1.25rem; }
+  .lobby-colorbars > div { font-size: 0.55rem; }
+  .lobby-title {
+    font-size: clamp(2.6rem, 14vw, 5rem);
+    text-shadow:
+      -2px 0 0 var(--magenta),
+      2px 0 0 var(--cyan),
+      0 0 20px rgba(255, 255, 255, 0.25);
+  }
+  .lobby-title .line2 {
+    text-shadow: -2px 0 0 var(--magenta), 2px 0 0 var(--cyan);
+  }
+  .lobby-show-card { font-size: 0.65rem; letter-spacing: 0.32em; }
+  .lobby-meta { font-size: 0.7rem; letter-spacing: 0.08em; }
+  .signin-block { padding: 2rem 0 1rem; gap: 1rem; }
+  .press-play { font-size: 1.4rem; }
+  .signin-btn {
+    font-size: 1.05rem;
+    padding: 0.85rem 1.6rem;
+    box-shadow: 4px 4px 0 var(--amber), 8px 8px 0 var(--crt-blacker);
+  }
+  .signin-btn:hover {
+    box-shadow: 6px 6px 0 var(--amber), 12px 12px 0 var(--crt-blacker);
+  }
+  .lobby-grid-link { font-size: 0.75rem; }
+
+  /* Countdown box — the 6rem numerals overflow on 320px phones; clamp so
+     they always fit. */
+  .countdown-box { padding: 1rem 0.75rem; max-width: none; }
+  .countdown-numerals { font-size: clamp(3.2rem, 16vw, 6rem); }
+  .countdown-box .label, .countdown-box .sub {
+    font-size: 0.65rem; letter-spacing: 0.2em;
+  }
+
+  .crew { gap: 0.6rem; margin-top: 1.5rem; }
+  .crew-item { padding: 0.4rem 0.75rem; }
+
+  /* Player view — already collapses to 1-col at 900px; tighten the strip. */
+  .player-view { padding: 0.5rem; gap: 0.5rem; }
+  .player-strip { gap: 0.4rem; padding-bottom: 0.25rem; }
+  .player-strip > * { flex: 0 0 70%; }
+
+  /* Tiles — cam badge and timecode shrink; lower-third drops the show + pt
+     columns so the participant name actually has room to render on a tile
+     that's only ~225px wide (60% of a 375px viewport, minus padding). */
+  .tile-cam { font-size: 0.85rem; padding: 0.05rem 0.35rem; }
+  .tile-tc { font-size: 0.8rem; }
+  .tile-rec { font-size: 0.6rem; left: 4rem; }
+  .tile-lower-third { grid-template-columns: 1fr; }
+  .tile-lower-third .show, .tile-lower-third .pt { display: none; }
+  .tile-lower-third .name { font-size: 1rem; padding: 0.45rem 0.7rem; }
+  .tile-name-tag { font-size: 0.85rem; padding: 0.3rem 0.55rem; }
+  .sync-indicator { font-size: 0.85rem; padding: 0.2rem 0.4rem; }
+
+  /* Public grid — banner stacks the timecode on a second line so the long
+     "SYNCER'S PARADISE / GLOBAL FEED / N CAMS LIVE 00:00:21" string doesn't
+     wrap awkwardly mid-phrase. */
+  .public-grid { padding: 0.5rem; }
+  .grid-banner {
+    font-size: 0.95rem; letter-spacing: 0.14em; padding: 0.75rem;
+    line-height: 1.4;
+  }
+  .grid-banner .feed-tc {
+    display: block;
+    margin-left: 0;
+    margin-top: 0.25rem;
+    font-size: 0.95em;
+  }
+  .cam-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .unmute-floor { font-size: 0.85rem; padding: 0.65rem 1rem; }
+  .footer-tc { font-size: 0.8rem; }
+
+  /* Performance: the static-noise overlay is full-screen, mix-blend-mode:
+     screen, with a per-frame transform animation. iOS Safari's compositor
+     repaints this on every step which causes scrolling jank. Drop the
+     animation on phones — the static noise still renders, it just doesn't
+     jitter. Visually almost identical, no fps cost. */
+  body::after { animation: none; }
+}
+
+/* ----- ≤ 480px: smallest phones — drop the channel banner entirely ----- */
+@media (max-width: 480px) {
+  .chyron {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .chyron .channel { display: none; }
+}
+
+/* ----- prefers-reduced-motion ----- */
+/* The scanlines, CRT flicker, color-bar fade, blinking press-play, and
+   pulsing REC dots are all decorative. Honor the OS-level setting for
+   users with vestibular sensitivity / motion-triggered migraines. */
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after,
+  #root > .app-shell,
+  .lobby-colorbars,
+  .press-play,
+  .rec-dot,
+  .tile-rec .d {
+    animation: none !important;
+  }
+  .lobby-colorbars { opacity: 0.5; }
+}
