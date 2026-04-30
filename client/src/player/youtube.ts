@@ -1,4 +1,5 @@
 import { decideDriftAction } from "./drift.js";
+import { decideStartAction } from "./scheduling.js";
 
 declare global {
   interface Window {
@@ -79,17 +80,36 @@ export async function createSyncedPlayer(opts: SyncedPlayerOptions): Promise<Syn
 
   return {
     scheduleStart(playAtServerMs) {
-      const now = Date.now();
-      const delay = Math.max(0, playAtServerMs - opts.getOffsetMs() - now);
       if (scheduledTimeout) clearTimeout(scheduledTimeout);
-      const preDelay = Math.max(0, delay - 2000);
+      const action = decideStartAction({
+        playAtServerMs,
+        offsetMs: opts.getOffsetMs(),
+        nowMs: Date.now(),
+      });
+      if (action.kind === "live") {
+        // Late open / reconnect — jump to the live playhead immediately.
+        player.seekTo(action.playheadSec, true);
+        if (!opts.muted) player.unMute();
+        player.playVideo();
+        return;
+      }
+      if (action.kind === "imminent") {
+        // No pre-buffer phase — seek to 0 and play at T.
+        player.seekTo(0, true);
+        scheduledTimeout = setTimeout(() => {
+          if (!opts.muted) player.unMute();
+          player.playVideo();
+        }, action.playInMs);
+        return;
+      }
+      // future: pre-buffer at T-2s, then play at T.
       scheduledTimeout = setTimeout(() => {
         player.seekTo(0, true);
         scheduledTimeout = setTimeout(() => {
           if (!opts.muted) player.unMute();
           player.playVideo();
         }, Math.max(0, playAtServerMs - opts.getOffsetMs() - Date.now()));
-      }, preDelay);
+      }, action.preDelayMs);
     },
     correctDrift(expectedSec) {
       const action = decideDriftAction({ expectedSec, currentSec: player.getCurrentTime() });

@@ -54,6 +54,7 @@ export class Room {
   }
 
   onSocketJoin(socket: object, user: Participant | null): void {
+    const beforeParticipants = this.participants.count();
     const pending = user !== null && this.state === "PLAYING";
     if (user && !pending) {
       this.participants.addSocket(socket, user);
@@ -61,13 +62,23 @@ export class Room {
       this.pendingUsers.set(user.id, user);
     }
     this.sockets.set(socket, { user, pending });
-    this.sendStateTo(socket);
+    const participantsChanged = this.participants.count() !== beforeParticipants;
+    if (participantsChanged) {
+      // Membership changed — every connected socket needs the new participant list.
+      this.broadcastState();
+    } else {
+      // Just the new socket needs an initial state snapshot.
+      this.sendStateTo(socket);
+    }
+    // May trigger COUNTDOWN, which broadcasts again (idempotent).
     this.maybeStartCountdown();
   }
 
   onSocketLeave(socket: object): void {
     const rec = this.sockets.get(socket);
     if (!rec) return;
+    const beforeState = this.state;
+    const beforeParticipants = this.participants.count();
     this.sockets.delete(socket);
     if (rec.user && !rec.pending) {
       this.participants.removeSocket(socket);
@@ -79,6 +90,13 @@ export class Room {
     }
     this.maybeCancelCountdown();
     this.maybeEndPlayingDueToEmpty();
+    // If neither transition fired but participant set changed, the remaining
+    // sockets still need the updated participant list.
+    const participantsChanged = this.participants.count() !== beforeParticipants;
+    const stateChanged = this.state !== beforeState;
+    if (participantsChanged && !stateChanged) {
+      this.broadcastState();
+    }
   }
 
   private sendStateTo(socket: object): void {
