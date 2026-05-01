@@ -39,14 +39,21 @@ a:hover { color: var(--amber); border-bottom-color: var(--amber); }
 
 body::before {
   content: ""; position: fixed; inset: 0; z-index: 90; pointer-events: none;
+  /* Two interlocked stripes per 4px row: a dark band that shows on bright
+     content (chyron, color bars, white title) and a faint light band that
+     shows on the near-black background. Without this the page is so dark
+     that mix-blend-mode: multiply made scanlines imperceptible on the
+     player and grid views. Plain transparency (no blend mode) so the
+     effect is consistent across pages and browsers. */
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0,0,0,0) 0,
-    rgba(0,0,0,0) 2px,
-    rgba(0,0,0,0.22) 3px,
-    rgba(0,0,0,0) 4px
+    transparent 0,
+    transparent 2px,
+    rgba(0, 0, 0, 0.36) 2px,
+    rgba(0, 0, 0, 0.36) 3px,
+    rgba(255, 255, 255, 0.05) 3px,
+    rgba(255, 255, 255, 0.05) 4px
   );
-  mix-blend-mode: multiply;
   animation: scan-scroll 6s linear infinite;
 }
 body::after {

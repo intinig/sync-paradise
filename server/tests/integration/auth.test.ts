@@ -55,29 +55,28 @@ describe("Google OAuth", () => {
     s.server.close();
   });
 
-  it("GET /auth/google redirects to accounts.google.com with state and PKCE", async () => {
+  it("GET /auth/google redirects to accounts.google.com with PKCE and a sealed state, no cookies", async () => {
     const res = await fetch(`http://localhost:${s.port}/auth/google`, { redirect: "manual" });
     expect(res.status).toBe(302);
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("https://accounts.google.com/o/oauth2/v2/auth");
     expect(loc).toContain("code_challenge=");
     expect(loc).toContain("state=");
+    // The OAuth state now carries everything we need; no cookies are set on
+    // /auth/google so we don't depend on them surviving the round-trip.
     const setCookies = res.headers.getSetCookie?.() ?? [];
-    expect(setCookies.some((c) => c.startsWith("oauth_state="))).toBe(true);
-    expect(setCookies.some((c) => c.startsWith("oauth_pkce="))).toBe(true);
+    expect(setCookies).toEqual([]);
   });
 
   it("GET /auth/google/callback exchanges code, sets session cookie, redirects /", async () => {
     const startRes = await fetch(`http://localhost:${s.port}/auth/google`, { redirect: "manual" });
-    const setCookies = startRes.headers.getSetCookie?.() ?? [];
-    const stateCookie = setCookies.find((c) => c.startsWith("oauth_state="))!;
-    const pkceCookie = setCookies.find((c) => c.startsWith("oauth_pkce="))!;
-    const stateValue = decodeURIComponent(stateCookie.split(";")[0].split("=")[1]);
+    const loc = startRes.headers.get("location") ?? "";
+    const stateValue = new URL(loc).searchParams.get("state") ?? "";
+    expect(stateValue.length).toBeGreaterThan(0);
 
-    const cookieHeader = `${stateCookie.split(";")[0]}; ${pkceCookie.split(";")[0]}`;
     const cbRes = await fetch(
-      `http://localhost:${s.port}/auth/google/callback?code=fake-code&state=${stateValue}`,
-      { redirect: "manual", headers: { cookie: cookieHeader } },
+      `http://localhost:${s.port}/auth/google/callback?code=fake-code&state=${encodeURIComponent(stateValue)}`,
+      { redirect: "manual" },
     );
     expect(cbRes.status).toBe(302);
     expect(cbRes.headers.get("location")).toBe("/");
@@ -90,10 +89,22 @@ describe("Google OAuth", () => {
     expect(user).toEqual({ id: "google-1234", name: "Alice Tester", picture: "https://x/y.png" });
   });
 
-  it("GET /auth/google/callback rejects mismatched state", async () => {
+  it("GET /auth/google/callback returns a parameter-specific 400 when code or state is missing", async () => {
+    // Missing code AND state: hits the parameter-validation branch, not the
+    // unseal branch, so the message should be the parameter one — easier to
+    // triage in logs.
+    const res = await fetch(`http://localhost:${s.port}/auth/google/callback`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Missing OAuth callback parameters");
+  });
+
+  it("GET /auth/google/callback returns a state-mismatch 400 when the state can't be unsealed", async () => {
     const res = await fetch(`http://localhost:${s.port}/auth/google/callback?code=x&state=wrong`, {
       redirect: "manual",
     });
     expect(res.status).toBe(400);
+    expect(await res.text()).toBe("OAuth state mismatch");
   });
 });
