@@ -89,10 +89,22 @@ describe("Google OAuth", () => {
     expect(user).toEqual({ id: "google-1234", name: "Alice Tester", picture: "https://x/y.png" });
   });
 
-  it("GET /auth/google/callback rejects an unsealable state", async () => {
+  it("GET /auth/google/callback returns a parameter-specific 400 when code or state is missing", async () => {
+    // Missing code AND state: hits the parameter-validation branch, not the
+    // unseal branch, so the message should be the parameter one — easier to
+    // triage in logs.
+    const res = await fetch(`http://localhost:${s.port}/auth/google/callback`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Missing OAuth callback parameters");
+  });
+
+  it("GET /auth/google/callback returns a state-mismatch 400 when the state can't be unsealed", async () => {
     const res = await fetch(`http://localhost:${s.port}/auth/google/callback?code=x&state=wrong`, {
       redirect: "manual",
     });
     expect(res.status).toBe(400);
+    expect(await res.text()).toBe("OAuth state mismatch");
   });
 });

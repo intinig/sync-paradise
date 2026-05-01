@@ -17,9 +17,16 @@ const SCOPE = "openid email profile";
 // case a future caller wants to inspect or refresh.
 const STATE_TTL_SEC = 600;
 
+// The seal carries only the PKCE verifier. We deliberately do NOT bind the
+// state to the initiating browser (no nonce + cookie pair, no server-side
+// nonce store). For this app — single global room, session payload is just
+// {id, name, picture}, no per-user data — login-CSRF is an acceptable
+// trade-off in exchange for an OAuth flow that survives iOS Safari /
+// in-app-browser cookie purging. See the PR #12 discussion for the full
+// reasoning. The PKCE verifier itself is always fresh per /auth/google
+// call, so the seal isn't replayable against a different code.
 interface SealedState {
-  v: string; // PKCE verifier — kept server-secret via the seal
-  n: string; // CSRF nonce so two concurrent flows produce different states
+  v: string;
 }
 
 function base64url(buf: Buffer): string {
@@ -46,7 +53,7 @@ export function mountGoogleAuth(app: express.Express, opts: GoogleAuthOptions): 
     // PKCE verifier — no cookie has to survive the cross-site round-trip
     // through Google. iOS Safari and in-app browsers drop our cookies
     // surprisingly often during OAuth; keeping the state inline avoids it.
-    const payload: SealedState = { v: verifier, n: randomString(8) };
+    const payload: SealedState = { v: verifier };
     const sealed = await sealData(payload, {
       password: opts.sessionSecret,
       ttl: STATE_TTL_SEC,
@@ -67,7 +74,7 @@ export function mountGoogleAuth(app: express.Express, opts: GoogleAuthOptions): 
       const code = typeof req.query.code === "string" ? req.query.code : "";
       const stateParam = typeof req.query.state === "string" ? req.query.state : "";
       if (!code || !stateParam) {
-        res.status(400).send("OAuth state mismatch");
+        res.status(400).send("Missing OAuth callback parameters");
         return;
       }
       let unsealed: SealedState;
